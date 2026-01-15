@@ -1,0 +1,16 @@
+Running GradCAM Verification... 
+ 
+[1/2] Clearing __pycache__... 
+Cache cleared. 
+[2/2] Running Python Verification Script... 
+SUCCESS: Imported GradCAM
+DEBUG: Applying Smart Overlay (High Visibility)
+Cold Pixel (Input Green): [  0 255   0]
+CHECK 1 PASSED: Cold area is Transparent (Shows Original Green).
+Hot Pixel (Heatmap Red): [115  25   0]
+CHECK 2 PASSED: Hot area shows Heatmap (Red).
+DEBUG: Applying Smart Overlay (High Visibility)
+Mid Pixel (0.4 Activation): [  6 255  60]
+CHECK 3 PASSED: Mid-range activation is Visible (Not just Green).
+ 
+Done. 
