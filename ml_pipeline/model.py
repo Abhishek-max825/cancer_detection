@@ -157,11 +157,14 @@ def get_model(model_type: str = 'efficientnet',
         Model instance
     """
     if model_type.lower() == 'efficientnet':
-        model = CancerClassifier(pretrained=pretrained, freeze_backbone=freeze_backbone)
+        weights = 'DEFAULT' if pretrained else None
+        model = CancerClassifier(pretrained=weights, freeze_backbone=freeze_backbone)
     elif model_type.lower() == 'resnet':
-        model = ResNetClassifier(pretrained=pretrained, freeze_backbone=freeze_backbone)
+        weights = 'DEFAULT' if pretrained else None
+        model = ResNetClassifier(pretrained=weights, freeze_backbone=freeze_backbone)
     elif model_type.lower() == 'densenet':
-        model = DenseNetClassifier(pretrained=pretrained, freeze_backbone=freeze_backbone)
+        weights = 'DEFAULT' if pretrained else None
+        model = DenseNetClassifier(pretrained=weights, freeze_backbone=freeze_backbone)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     

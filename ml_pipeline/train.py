@@ -7,22 +7,19 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.cuda.amp import GradScaler, autocast # Mixed Precision
 from tqdm import tqdm
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 from data_loader import create_dataloaders
-from model import get_model # Updated imports
+from model import get_model
 from utils import save_checkpoint
 
-# --- ENSEMBLE DEFINITIONS (Added for Local Training) ---
-# NOTE: Ensure these classes are available in model.py or defined here. 
-# For simplicity, we will assume model.py is updated or we define usage here.
-# Since model.py was not modified in the previous steps for local file, 
-# we will rely on get_model but extend it to support the ensemble loop.
+# --- ENSEMBLE DEFINITIONS ---
 
-def train_epoch(model, dataloader, criterion, optimizer, device):
-    """Train for one epoch"""
+def train_epoch(model, dataloader, criterion, optimizer, device, scaler):
+    """Train for one epoch with Mixed Precision"""
     model.train()
     running_loss = 0.0
     all_preds = []
@@ -34,11 +31,18 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
         labels = labels.float().unsqueeze(1).to(device)
         
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
         
-        loss.backward()
-        optimizer.step()
+
+        # Mixed Precision Forward Pass
+        with torch.amp.autocast("cuda"):
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+        
+        # Mixed Precision Backward Pass
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
         
         running_loss += loss.item() * images.size(0)
         preds = (torch.sigmoid(outputs) > 0.5).float()
@@ -115,45 +119,39 @@ def evaluate_ensemble(models_dict, dataloader, device):
 
 def main():
     parser = argparse.ArgumentParser(description='Train Cancer Detection Ensemble')
-    # Use defaults for local training - Paths relative to CWD
+    # Use defaults for local training
     parser.add_argument('--data_dir', type=str, default='train', help='Training images directory')
     parser.add_argument('--csv_path', type=str, default='train_labels.csv', help='Labels CSV path')
     parser.add_argument('--save_dir', type=str, default='ml_pipeline/checkpoints', help='Save directory')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
-    parser.add_argument('--num_epochs', type=int, default=20, help='Epochs per model')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size (Increased for AMP)')
+    parser.add_argument('--num_epochs', type=int, default=15, help='Epochs per model')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--max_samples', type=int, default=60000, help='Max samples (Optimization)')
+    parser.add_argument('--max_samples', type=int, default=220025, help='Max samples (Full Dataset)')
     
     args = parser.parse_args()
     
     os.makedirs(args.save_dir, exist_ok=True)
     
-    # Device Check with Explicit Warnings
+    # Device Check
     if torch.cuda.is_available():
         device = 'cuda'
         print(f"✅ GPU DETECTED: {torch.cuda.get_device_name(0)}")
+        print("🚀 Using Automatic Mixed Precision (AMP) for faster training")
     else:
         device = 'cpu'
         print("⚠️ GPU NOT DETECTED! Training will be VERY SLOW.")
-        print("   To use your RTX 3050, run this command:")
-        print("   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118")
     
     print(f"Using device: {device}")
     
-    # Create dataloaders (Shared for all models)
+    # Create dataloaders
     print(f"Loading data (Max Samples: {args.max_samples})...")
     train_loader, val_loader, test_loader = create_dataloaders(
         csv_path=args.csv_path,
         image_dir=args.data_dir,
         batch_size=args.batch_size,
-        num_workers=2, # Safer for Windows
+        num_workers=4,
         max_samples=args.max_samples
     )
-    
-    # Define Ensemble Models
-    # We need to ensure get_model or manual definitions return these specific architectures
-    # For this script we will instantiate them directly if get_model is generic, 
-    # but let's assume get_model can handle types
     
     models_to_train = [
         ('DenseNet', 'densenet'),
@@ -163,20 +161,20 @@ def main():
     
     trained_models = {}
     
+    # Initialize Gradient Scaler for AMP
+    scaler = torch.amp.GradScaler("cuda")
+    
     for name, model_type in models_to_train:
         print(f"\n{'='*30}\nTraining {name}...\n{'='*30}")
         
         model = get_model(model_type, pretrained=True, freeze_backbone=True, device=device)
         
-        # Calculate Class Weight (Neg/Pos ratio)
-        # Based on your data: 0=35698, 1=24302 -> Ratio ~ 1.46
-        pos_weight = torch.tensor([35698 / 24302]).to(device)
-        
-        # Use Weighted Loss to break the plateau
+        # Calculate Class Weight (Neg/Pos ratio) ~ 1.46
+        pos_weight = torch.tensor([1.46]).to(device)
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2, verbose=True)
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
         
         best_acc = 0.0
         best_model_path = os.path.join(args.save_dir, f'best_model_{name.lower()}.pth')
@@ -184,7 +182,7 @@ def main():
         for epoch in range(args.num_epochs):
             print(f"\nEpoch {epoch+1}/{args.num_epochs}")
             
-            train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
+            train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, scaler)
             print(f"Train Loss: {train_loss:.4f} | Acc: {train_acc:.4f}")
             
             val_loss, val_acc, _, _ = validate(model, val_loader, criterion, device)
@@ -198,7 +196,7 @@ def main():
                 print(f"Saved best {name} model (Acc: {best_acc:.4f})")
                 
             # Fine-tuning logic
-            if epoch == 5:
+            if epoch == 0: # Unfreeze immediately after Epoch 1 (Warmup)
                 print("Unfreezing backbone for fine-tuning...")
                 if hasattr(model, 'unfreeze_backbone'):
                      model.unfreeze_backbone()
