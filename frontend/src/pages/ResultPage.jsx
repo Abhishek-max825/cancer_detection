@@ -46,6 +46,7 @@ const ResultPage = () => {
                     confidence={result.confidence}
                     entropy={result.entropy}
                     patternType={result.pattern_type}
+                    ensembleVotes={result.ensemble_votes}
                 />
 
                 <div className="mt-12 flex justify-center gap-4">

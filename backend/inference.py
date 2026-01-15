@@ -73,17 +73,26 @@ class EnsembleCancerPredictor:
 
     @torch.no_grad()
     def predict(self, image: Image.Image) -> dict:
-        tensor = self.preprocess_image(image).to(self.device)
+        # TTA: Test Time Augmentation (Original + Flips)
+        # This acts as a "Second Opinion" to boost confidence and robustness
+        images = [
+            image, 
+            image.transpose(Image.FLIP_LEFT_RIGHT),
+            image.transpose(Image.FLIP_TOP_BOTTOM)
+        ]
         
-        probs = []
-        # Get predictions from all available models
-        for name, model in self.models.items():
-            logits = model(tensor)
-            prob = torch.sigmoid(logits).item()
-            probs.append(prob)
+        all_probs = []
         
-        # Average Probability (Soft Voting)
-        avg_confidence = sum(probs) / len(probs)
+        # Get predictions from all models for ACCUMULATED robustness
+        for img_variant in images:
+            tensor = self.preprocess_image(img_variant).to(self.device)
+            for name, model in self.models.items():
+                logits = model(tensor)
+                prob = torch.sigmoid(logits).item()
+                all_probs.append(prob)
+        
+        # Robust Average (Soft Voting across 9 predictions)
+        avg_confidence = sum(all_probs) / len(all_probs)
         
         prediction = "Cancer" if avg_confidence > 0.5 else "Non-Cancer"
         
@@ -102,7 +111,7 @@ class EnsembleCancerPredictor:
             'confidence': float(display_confidence),
             'raw_score': float(avg_confidence),
             'entropy': float(entropy),
-            'ensemble_votes': probs  # Debug info
+            'ensemble_votes': all_probs[:3]  # Return base votes for debug
         }
 
     def generate_gradcam(self, image: Image.Image) -> tuple:

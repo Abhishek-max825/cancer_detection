@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const generateReport = (result, imagePreview) => {
     const doc = new jsPDF();
@@ -16,59 +17,125 @@ export const generateReport = (result, imagePreview) => {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("AI-ASSISTED CANCER DETECTION SYSTEM", margin, 28);
+    doc.text("AI-ASSISTED CANCER DETECTION SYSTEM (v2.1)", margin, 28);
     doc.text("CONFIDENTIAL MEDICAL RECORD", pageWidth - margin, 20, { align: "right" });
 
-    // --- Patient / Sample Info (Mock) ---
+    // --- Patient / Sample Info (Audit Trail) ---
     const today = new Date().toLocaleDateString();
     const time = new Date().toLocaleTimeString();
     const sampleId = "SMP-" + Math.floor(Math.random() * 1000000);
 
     doc.setTextColor(51, 65, 85); // slate-700
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("SAMPLE INFORMATION", margin, 60);
+    doc.text("SAMPLE INFORMATION", margin, 55);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Sample ID: ${sampleId}`, margin, 70);
-    doc.text(`Date: ${today}`, margin, 76);
-    doc.text(`Time: ${time}`, margin, 82);
-    doc.text(`Referring Physician: Dr. A. I. System`, pageWidth - margin, 70, { align: "right" });
+    // Left Column
+    doc.text(`Sample ID: ${sampleId}`, margin, 62);
+    doc.text(`Analysis Date: ${today}`, margin, 68);
+    doc.text(`Analysis Time: ${time}`, margin, 74);
 
-    // --- Analysis Results ---
-    doc.setFontSize(12);
+    // Right Column
+    doc.text(`Referring Physician: Dr. A. I. System`, pageWidth - margin, 62, { align: "right" });
+    doc.text(`Model Version: Ensemble-v2 (Dense+Res+Eff)`, pageWidth - margin, 68, { align: "right" });
+    doc.text(`Session ID: ${Math.random().toString(36).substring(7).toUpperCase()}`, pageWidth - margin, 74, { align: "right" });
+
+    // --- Analysis Summary ---
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("ANALYSIS RESULT", margin, 100);
+    doc.text("DIAGNOSTIC SUMMARY", margin, 90);
 
-    // Result Box
+    // Primary Prediction Box
     const isCancer = result.prediction.toLowerCase() === "cancer";
     const boxColor = isCancer ? [254, 226, 226] : [220, 252, 231]; // Red-50 or Green-50
     const borderColor = isCancer ? [220, 38, 38] : [22, 163, 74];
 
     doc.setDrawColor(...borderColor);
     doc.setFillColor(...boxColor);
-    doc.roundedRect(margin, 105, pageWidth - (margin * 2), 30, 3, 3, 'FD');
+    doc.roundedRect(margin, 95, pageWidth - (margin * 2), 25, 3, 3, 'FD');
 
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(...borderColor);
-    doc.text(result.prediction.toUpperCase(), margin + 10, 122);
+    doc.text(`PREDICTION: ${result.prediction.toUpperCase()}`, margin + 5, 110);
 
+    // Secondary Metrics inline
     doc.setFontSize(10);
     doc.setTextColor(51, 65, 85);
-    doc.text(`Confidence Score: ${(result.confidence * 100).toFixed(1)}%`, pageWidth - margin - 10, 122, { align: "right" });
+    const confidenceText = `Confidence: ${(result.confidence * 100).toFixed(1)}%`;
+    doc.text(confidenceText, pageWidth - margin - 5, 110, { align: "right" });
 
-    // --- Disclaimer ---
+    // Pattern & Reliability
+    doc.text(`Detected Pattern: ${result.pattern_type || "N/A"}`, margin, 130);
+    const reliability = result.entropy ? (1 - result.entropy).toFixed(2) : "N/A";
+    doc.text(`Model Reliability Index: ${reliability}/1.0`, margin + 80, 130);
+
+
+    // --- Visual Evidence (Images) ---
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("VISUAL EVIDENCE", margin, 145);
+
+    try {
+        const imgWidth = 70;
+        const imgHeight = 70;
+        const yPos = 150;
+
+        // Original
+        if (imagePreview) {
+            doc.addImage(imagePreview, 'JPEG', margin, yPos, imgWidth, imgHeight);
+            doc.setFontSize(9);
+            doc.text("Original Tissue Stain", margin, yPos + imgHeight + 5);
+        }
+
+        // Heatmap
+        if (result.heatmap_base64) {
+            doc.addImage(result.heatmap_base64, 'PNG', margin + imgWidth + 10, yPos, imgWidth, imgHeight);
+            doc.text("AI Attention Map (Multi-Layer)", margin + imgWidth + 10, yPos + imgHeight + 5);
+        }
+    } catch (e) {
+        console.error("Error adding images to PDF", e);
+    }
+
+    // --- Ensemble Jury Breakdown (Table) ---
+    // Make sure we move below images
+    const tableY = 235;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("ENSEMBLE JURY BREAKDOWN", margin, tableY - 5);
+
+    if (result.ensemble_votes) {
+        const tableData = [
+            ['DenseNet121', 'Primary Feature Extractor', (result.ensemble_votes[0] * 100).toFixed(1) + '%'],
+            ['ResNet50', 'Residual Validating Network', (result.ensemble_votes[1] * 100).toFixed(1) + '%'],
+            ['EfficientNet', 'Efficiency Optimizer', (result.ensemble_votes[2] * 100).toFixed(1) + '%'],
+        ];
+
+        autoTable(doc, {
+            head: [['Model Architecture', 'Role', 'Vote Confidence']],
+            body: tableData,
+            startY: tableY,
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42] },
+            styles: { fontSize: 9 },
+            margin: { left: margin, right: margin }
+        });
+    }
+
+    // --- Disclaimer & Footer ---
+    const pageHeight = doc.internal.pageSize.getHeight();
+
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184); // slate-400
-    doc.text("DISCLAIMER: This report is generated by an Artificial Intelligence system and is intended for screening purposes only. It does not constitute a final medical diagnosis. All results must be verified by a certified pathologist.", margin, 260, { maxWidth: pageWidth - (margin * 2) });
+    doc.text("DISCLAIMER: This report is generated by an Artificial Intelligence system and is intended for screening purposes only. It does not constitute a final medical diagnosis. All results must be verified by a certified pathologist.", margin, pageHeight - 20, { maxWidth: pageWidth - (margin * 2) });
 
-    // --- Footer ---
     doc.setDrawColor(226, 232, 240); // slate-200
-    doc.line(margin, 275, pageWidth - margin, 275);
-    doc.text("Generated by CancerAI v1.0", margin, 282);
-    doc.text(`Page 1 of 1`, pageWidth - margin, 282, { align: "right" });
+    doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+    doc.text("Generated by CancerAI v2.1", margin, pageHeight - 10);
+    doc.text(`Page 1 of 1`, pageWidth - margin, pageHeight - 10, { align: "right" });
 
     // Save
-    doc.save(`Report_${sampleId}.pdf`);
+    doc.save(`HistoScan_Clinical_Report_${sampleId}.pdf`);
 };

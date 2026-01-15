@@ -9,7 +9,7 @@ from PIL import Image
 from io import BytesIO
 import os
 import base64
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 from inference import load_predictor, CancerPredictor
@@ -44,6 +44,7 @@ class PredictionResponse(BaseModel):
     message: str = "Prediction generated successfully"
     entropy: Optional[float] = None
     pattern_type: Optional[str] = None
+    ensemble_votes: Optional[List[float]] = None
 
 
 class HealthResponse(BaseModel):
@@ -166,7 +167,8 @@ async def predict(file: UploadFile = File(...)):
             "original_base64": original_base64,
             "message": f"Analysis complete. Detected: {result['prediction']}",
             "entropy": result.get('entropy'),
-            "pattern_type": pattern_type
+            "pattern_type": pattern_type,
+            "ensemble_votes": result.get('ensemble_votes') # Added ensemble_votes
         }
         
         return response

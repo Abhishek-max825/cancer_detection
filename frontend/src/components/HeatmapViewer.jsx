@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Info, SplitSquareHorizontal, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence, entropy, patternType }) => {
+const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence, entropy, patternType, ensembleVotes }) => {
     const [viewMode, setViewMode] = useState('side-by-side'); // 'side-by-side' or 'overlay'
     const [showOverlay, setShowOverlay] = useState(true);
 
@@ -260,10 +260,10 @@ const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence, en
                             </div>
                         </div>
                         <div className={clsx(
-                            "w-12 h-12 rounded-full flex items-center justify-center border-2",
+                            "w-8 h-8 shrink-0 rounded-full flex items-center justify-center border-2",
                             status.border, status.bg, status.text
                         )}>
-                            <div className={clsx("w-3 h-3 rounded-full animate-pulse", status.pulse)} />
+                            <div className={clsx("w-2 h-2 rounded-full animate-pulse", status.pulse)} />
                         </div>
                     </div>
 
@@ -330,6 +330,45 @@ const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence, en
                             )}
                         </p>
                     </div>
+
+                    {/* Ensemble Jury Vote */}
+                    {ensembleVotes && ensembleVotes.length > 0 && (
+                        <div className="col-span-1 lg:col-span-4 mt-6 pt-6 border-t border-clinical-200">
+                            <h4 className="text-xs font-semibold text-clinical-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-clinical-400"></div>
+                                Ensemble Jury Breakdown
+                            </h4>
+                            <div className="grid grid-cols-3 gap-4">
+                                {['DenseNet121', 'ResNet50', 'EfficientNet'].map((modelName, idx) => {
+                                    const vote = ensembleVotes[idx] || 0;
+                                    const percentage = (vote * 100).toFixed(1);
+                                    const isHigh = vote > 0.5;
+
+                                    return (
+                                        <div key={modelName} className="bg-clinical-50/80 rounded-lg p-3 border border-clinical-200 shadow-sm flex flex-col gap-2 backdrop-blur-sm">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-clinical-700 font-bold">{modelName}</span>
+                                                <span className={clsx("font-mono font-bold text-sm", isHigh ? "text-rose-600" : "text-emerald-600")}>
+                                                    {percentage}%
+                                                </span>
+                                            </div>
+                                            <div className="h-2 w-full bg-white border border-clinical-100 rounded-full overflow-hidden">
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${percentage}%` }}
+                                                    transition={{ delay: 0.2 + (idx * 0.1) }}
+                                                    className={clsx(
+                                                        "h-full rounded-full shadow-sm",
+                                                        isHigh ? "bg-gradient-to-r from-rose-500 to-red-600" : "bg-gradient-to-r from-emerald-400 to-teal-500"
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
