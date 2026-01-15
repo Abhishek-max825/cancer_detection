@@ -229,8 +229,8 @@ def create_dataloaders(csv_path: str,
 
 if __name__ == "__main__":
     # Test data loading
-    csv_path = "../train_labels.csv"
-    image_dir = "../train"
+    csv_path = "../data/train_labels.csv"
+    image_dir = "../data/train"
     
     print("Testing data loader...")
     train_loader, val_loader, test_loader = create_dataloaders(

@@ -120,8 +120,8 @@ def evaluate_ensemble(models_dict, dataloader, device):
 def main():
     parser = argparse.ArgumentParser(description='Train Cancer Detection Ensemble')
     # Use defaults for local training
-    parser.add_argument('--data_dir', type=str, default='train', help='Training images directory')
-    parser.add_argument('--csv_path', type=str, default='train_labels.csv', help='Labels CSV path')
+    parser.add_argument('--data_dir', type=str, default='data/train', help='Training images directory')
+    parser.add_argument('--csv_path', type=str, default='data/train_labels.csv', help='Labels CSV path')
     parser.add_argument('--save_dir', type=str, default='ml_pipeline/checkpoints', help='Save directory')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size (Increased for AMP)')
     parser.add_argument('--num_epochs', type=int, default=15, help='Epochs per model')
