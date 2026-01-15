@@ -42,6 +42,8 @@ class PredictionResponse(BaseModel):
     heatmap_base64: str
     original_base64: Optional[str] = None
     message: str = "Prediction generated successfully"
+    entropy: Optional[float] = None
+    pattern_type: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -140,9 +142,17 @@ async def predict(file: UploadFile = File(...)):
         # Make prediction
         result = predictor.predict(image)
         
-        # Generate Grad-CAM
-        heatmap_base64 = predictor.generate_gradcam(image)
+        # Generate Grad-CAM and Variance
+        heatmap_base64, variance = predictor.generate_gradcam(image)
         
+        # Determine Pattern Type based on Variance
+        # High variance -> Focal/Specific area
+        # Low variance -> Diffuse/Spread out
+        if result['prediction'] == 'Cancer':
+            pattern_type = "Diffuse/Metastatic" if variance < 0.05 else "Focal/Localized"
+        else:
+            pattern_type = "Benign/Normal"
+
         # Convert original image to base64 for display (handles TIFFs)
         buffered_original = BytesIO()
         image.save(buffered_original, format="PNG")
@@ -154,7 +164,9 @@ async def predict(file: UploadFile = File(...)):
             "confidence": result['confidence'],
             "heatmap_base64": heatmap_base64,
             "original_base64": original_base64,
-            "message": f"Analysis complete. Detected: {result['prediction']}"
+            "message": f"Analysis complete. Detected: {result['prediction']}",
+            "entropy": result.get('entropy'),
+            "pattern_type": pattern_type
         }
         
         return response

@@ -44,6 +44,8 @@ const ResultPage = () => {
                     heatmapImage={result.heatmap_base64}
                     prediction={result.prediction}
                     confidence={result.confidence}
+                    entropy={result.entropy}
+                    patternType={result.pattern_type}
                 />
 
                 <div className="mt-12 flex justify-center gap-4">

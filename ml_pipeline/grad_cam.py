@@ -145,6 +145,38 @@ class GradCAM:
         return overlaid
 
 
+def get_gradcam_layers(model):
+    """
+    Get multiple layers for Multi-layer Grad-CAM Fusion
+    Returns: List of layers [Late (Structure), Early (Texture)]
+    """
+    layers = []
+    if hasattr(model, 'backbone'):
+        backbone = model.backbone
+        
+        # EfficientNet
+        if hasattr(backbone, 'features'):
+            # Late: Last block, Early: Middle block
+            layers.append(backbone.features[-1])
+            layers.append(backbone.features[-4]) # Earlier block
+            return layers
+        
+        # ResNet
+        elif hasattr(backbone, 'layer4'):
+            layers.append(backbone.layer4[-1])
+            layers.append(backbone.layer3[-1]) # Earlier block
+            return layers
+
+        # DenseNet
+        elif model.__class__.__name__ == 'DenseNetClassifier':
+             layers.append(backbone.features.denseblock4)
+             layers.append(backbone.features.denseblock3) # Earlier block
+             return layers
+    
+    # Fallback to single layer if unknown
+    return [get_gradcam_layer(model)]
+
+
 def get_gradcam_layer(model):
     """
     Get the appropriate layer for Grad-CAM based on model architecture

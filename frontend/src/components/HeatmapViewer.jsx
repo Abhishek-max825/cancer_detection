@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Info, SplitSquareHorizontal, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence }) => {
+const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence, entropy, patternType }) => {
     const [viewMode, setViewMode] = useState('side-by-side'); // 'side-by-side' or 'overlay'
     const [showOverlay, setShowOverlay] = useState(true);
 
@@ -243,8 +243,8 @@ const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence }) 
                     status.glow
                 )} />
 
-                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-                    <div className="flex items-center justify-between">
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-4 gap-6 items-center">
+                    <div className="flex items-center justify-between col-span-1">
                         <div>
                             <h3 className="text-sm font-medium text-clinical-500 uppercase tracking-wider">Prediction</h3>
                             <div className="flex flex-col mt-1">
@@ -267,7 +267,36 @@ const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence }) 
                         </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-4 col-span-1 lg:col-span-1 border-l border-clinical-200 pl-6">
+                        {/* Pattern Type */}
+                        <div>
+                            <span className="text-xs font-semibold text-clinical-400 uppercase tracking-wider block mb-1">
+                                Pattern Analysis
+                            </span>
+                            <span className="text-sm font-medium text-clinical-700 bg-white/50 px-2 py-1 rounded-md border border-clinical-100">
+                                {patternType || "N/A"}
+                            </span>
+                        </div>
+
+                        {/* Uncertainty / Entropy */}
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="text-clinical-400 font-semibold uppercase tracking-wider">Model Uncertainty</span>
+                                <span className="text-clinical-600 font-mono">
+                                    {entropy ? (entropy * 100).toFixed(1) : 0}%
+                                </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-clinical-100 rounded-full overflow-hidden">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${entropy ? entropy * 100 : 0}%` }}
+                                    className="h-full bg-slate-400 rounded-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 col-span-1 lg:col-span-1 border-l border-clinical-200 pl-6">
                         <div className="flex justify-between text-sm">
                             <span className="text-clinical-600">Confidence Score</span>
                             <span className="font-semibold text-clinical-900">{confidencePercent}%</span>
@@ -285,18 +314,18 @@ const HeatmapViewer = ({ originalImage, heatmapImage, prediction, confidence }) 
                         </div>
                     </div>
 
-                    <div className="bg-medical-500/10 border border-medical-500/20 p-4 rounded-xl flex gap-3 text-sm text-medical-100">
+                    <div className="bg-medical-500/10 border border-medical-500/20 p-4 rounded-xl flex gap-3 text-sm text-medical-100 col-span-1">
                         <Info className="w-5 h-5 shrink-0 text-medical-500" />
-                        <p className="leading-relaxed">
+                        <p className="leading-relaxed text-xs">
                             {isBorderline ? (
                                 <>
-                                    The model is uncertain about this region.
-                                    <span className="block mt-1 font-medium text-amber-500 opacity-100">Recommendation: Expert review required. Inconclusive result.</span>
+                                    Uncertainty detected.
+                                    <span className="block mt-1 font-medium text-amber-500 opacity-100">Expert review required.</span>
                                 </>
                             ) : (
                                 <>
-                                    The attention map highlights cellular structures contributing to this result.
-                                    <span className="block mt-1 font-medium opacity-80">Recommendation: Histopathological review required.</span>
+                                    AI analysis complete.
+                                    <span className="block mt-1 font-medium opacity-80">Correlation with {patternType} pattern.</span>
                                 </>
                             )}
                         </p>
